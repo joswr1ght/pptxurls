@@ -175,6 +175,9 @@ if __name__ == "__main__":
     args.pptxfiles.sort(key=lambda f: f.name)
 
     booknum = 0
+    mdfile.write("# List of Links\n\n")
+    mdfile.write("Use this resource to easily open links included in your printed materials.\n\n")
+
     for pptxfile in args.pptxfiles:
         booknum += 1
         try:
@@ -183,16 +186,12 @@ if __name__ == "__main__":
             sys.stderr.write("Invalid PPTX file: " + sys.argv[1] + "\n")
             sys.exit(-1)
 
-        if (args.mdfile):
-            mdfile.write("# List of Links\n\n")
-            mdfile.write("Use this resource to easily open links included in your printed materials.\n\n")
-
-            # If there is more than one book, write a header and open table
-            if (len(args.pptxfiles) > 1):
-                mdfile.write(f"\n## Book {booknum}\n\n| Page | URL |\n|-----|-----|\n")
-            else:
-                # Only a single book, just open the table for URLs
-                mdfile.write(f"| Page | URL |\n|-----|-----|\n")
+        # If there is more than one book, write a header and open table
+        if (len(args.pptxfiles) > 1):
+            mdfile.write(f"\n## Book {booknum}\n\n| Page | URL |\n|-----|-----|\n")
+        else:
+            # Only a single book, just open the table for URLs
+            mdfile.write(f"| Page | URL |\n|-----|-----|\n")
 
         # This may be the most insane regex I've ever seen.  It's very comprehensive, but it's too aggressive for
         # what I want.  It matches arp:remote in ettercap -TqM arp:remote // //, so I'm using something simpler
