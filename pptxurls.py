@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 #
 # With code by Eric Jang ericjang2004@gmail.com
-from pptx import Presentation
 import sys
 import re
 import os
@@ -196,11 +195,6 @@ if __name__ == "__main__":
 
     for pptxfile in args.pptxfiles:
         booknum += 1
-        try:
-            prs = Presentation(pptxfile.name)
-        except Exception:
-            sys.stderr.write("Invalid PPTX file: " + sys.argv[1] + "\n")
-            sys.exit(-1)
 
         # If there is more than one book, write a header and open table
         if (len(args.pptxfiles) > 1):
