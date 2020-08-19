@@ -194,6 +194,10 @@ if __name__ == "__main__":
     mdfile.write("Use this resource to easily open links included in your printed materials.\n\n")
 
     for pptxfile in args.pptxfiles:
+        # Skip temporary files.
+        if os.path.basename(pptxfile.name).startswith("~$"):
+            continue
+
         booknum += 1
 
         # If there is more than one book, write a header and open table
@@ -210,7 +214,6 @@ if __name__ == "__main__":
             r'((https?://[^\s<>"]+|www\.[^\s<>"]+))', re.DOTALL)
         privateaddr = re.compile(
             r'(\S+127\.)|(\S+192\.168\.)|(\S+10\.)|(\S+172\.1[6-9]\.)|(\S+172\.2[0-9]\.)|(\S+172\.3[0-1]\.)|(\S+::1)')
-
 
         urls = {} # This is a dict: {PageNum:["url1","url2"]}
         parseslidenotes(pptxfile.name, urls)
