@@ -10,6 +10,7 @@ import shutil
 import glob
 import tempfile
 import argparse
+import pdb
 
 import signal
 from zipfile import ZipFile
@@ -51,16 +52,57 @@ def parse_node(root):
                     paragraphtext += "\n"
                 parse_node(node)
 
-# Returns a dictionary of pagenum:url
-
-
+# Return a hash of links in the urls object indexed by page number
+# Read from slide notes and slide text boxes and other text elements
 def parseslidenotes(pptxfile, urls):
     global paragraphtext
     tmpd = tempfile.mkdtemp()
 
     ZipFile(pptxfile).extractall(path=tmpd, pwd=None)
-    path = tmpd + os.sep + 'ppt' + os.sep + 'notesSlides' + os.sep
 
+
+    # Parse slide content first
+    path = tmpd + os.sep + 'ppt' + os.sep + 'slides' + os.sep
+    for infile in glob.glob(os.path.join(path, '*.xml')):
+        #parse each XML notes file from the notes folder.
+        slideText = ''
+        slideNumber = re.sub(r'\D', "", infile.split("/")[-1])
+        dom = parse(infile)
+
+        # In slides, content is grouped by paragraph using <a:p>
+        # Within the paragraph, there are multiple text blocks denoted as <a:t>
+        # For each paragraph, concatenate all of the text blocks without whitespace,
+        # then concatenate each paragraph delimited by a space.
+        paragraphs = dom.getElementsByTagName('a:p')
+        for paragraph in paragraphs:
+            textblocks = paragraph.getElementsByTagName('a:t')
+            for textblock in textblocks:
+                slideText += textblock.toxml().replace('<a:t>','').replace('</a:t>','')
+            slideText += " "
+
+        # Parse URL content from notes text for the current paragraph
+        urlmatches = re.findall(urlmatchre, slideText)
+        for urlmatch in urlmatches:  # Now it's a tuple
+            # Remove regex artifacts at the end of the URL: www.sans.org,
+            url = striptrailingchar(urlmatch[0])
+
+            # Add default URI for www.anything
+            if url[0:3] == "www":
+                url = "http://" + url
+
+            # This check should not be necessary
+            #if url != '':
+
+            # Add this URL to the hash
+            slideNumber = int(slideNumber)
+            if (slideNumber in urls):
+                urls[slideNumber].append(url)
+            else:
+                urls[slideNumber] = [url]
+
+
+    # Process notes content in slides
+    path = tmpd + os.sep + 'ppt' + os.sep + 'notesSlides' + os.sep
     for infile in glob.glob(os.path.join(path, '*.xml')):
         # parse each XML notes file from the notes folder.
 
@@ -77,53 +119,27 @@ def parseslidenotes(pptxfile, urls):
 
             # Parse URL content from notes text for the current paragraph
             urlmatches = re.findall(urlmatchre, paragraphtext)
-            if len(urlmatches) > 0:
-                for match in urlmatches:  # Now it's a tuple
-                    for urlmatch in match:
-                        if urlmatch != '':
-                            # urls.append([striptrailingchar(urlmatch), slideNumber])
-                            urls.update(
-                                {int(slideNumber): striptrailingchar(urlmatch)})
+            for urlmatch in urlmatches:  # Now it's a tuple
+
+                # Remove regex artifacts at the end of the URL: www.sans.org,
+                url = striptrailingchar(urlmatch[0])
+
+                # Add default URI for www.anything
+                if url[0:3] == "www":
+                    url = "http://" + url
+
+                # This check should not be necessary
+                #if url != '':
+
+                # Add this URL to the hash
+                slideNumber = int(slideNumber)
+                if (slideNumber in urls):
+                    urls[slideNumber].append(url)
+                else:
+                    urls[slideNumber] = [url]
 
     # Remove all the files created with unzip
     shutil.rmtree(tmpd)
-    return urls
-
-# Parse the text on slides using the python-pptx module, return URLs
-
-
-def parseslidetext(prs):
-    urls = []
-    singletextrun = ""
-    slidenum = 0
-    for slide in prs.slides:
-        slidenum += 1
-        text_runs = []
-        for shape in slide.shapes:
-            try:
-                if not shape.has_text_frame:
-                    continue
-            except AttributeError:
-                sys.stderr.write(
-                    "Error: Please upgrade your version of python-pptx: pip "
-                    "uninstall python-pptx ; pip install python-pptx\n")
-                sys.exit(-1)
-            for paragraph in shape.text_frame.paragraphs:
-                for run in paragraph.runs:
-                    singletextrun += run.text
-                text_runs.append(singletextrun)
-
-            for text in text_runs:
-                if text is None:
-                    continue
-                try:
-                    m = re.match(urlmatchre, text)
-                except IndexError:
-                    continue
-                if m is not None:
-                    url = striptrailingchar(m.groups()[0])
-                    if url not in urls:
-                        urls.append([url, slidenum])
     return urls
 
 
@@ -201,34 +217,21 @@ if __name__ == "__main__":
         privateaddr = re.compile(
             r'(\S+127\.)|(\S+192\.168\.)|(\S+10\.)|(\S+172\.1[6-9]\.)|(\S+172\.2[0-9]\.)|(\S+172\.3[0-1]\.)|(\S+::1)')
 
-        urls = {}
-        # TOFIX urls += parseslidetext(prs)
+
+        urls = {} # This is a dict: {PageNum:["url1","url2"]}
         parseslidenotes(pptxfile.name, urls)
 
-        for pagenum in sorted(list(urls.keys())):
-            url = urls[pagenum]
-            url = url.encode('ascii', 'ignore').decode('utf-8')
+        for slideNumber in sorted(urls):
+            for url in urls[slideNumber]:
+                url = url.encode('ascii', 'ignore').decode('utf-8')
 
-            # Add default URI for www.anything
-            if url[0:3] == "www":
-                url = "http://" + url
+                # Skip private IP addresses
+                if re.match(privateaddr, url):
+                    continue
+                if "://localhost" in url:
+                    continue
 
-            # Some authors include URLs in the form http://www.josh.net.[1], http://www.josh.net[1].
-            # or http://www.josh.net[1]
-            # Remove the footnote and/or leading or trailing dot.
-            footnote = re.compile(r"(\.\[\d+\]|\[\d+\]\.|\[\d+\])")
-            if re.search(footnote, url):
-                url = re.sub(footnote, "", url)
-
-            # Remove a trailing period
-            if url[-1] == ".":
-                url = url[:-1]
-
-            # Skip private IP addresses
-            if re.match(privateaddr, url):
-                continue
-
-            mdfile.write(f"| {pagenum} | [{url}]({url}) |\n")
+                mdfile.write(f"| {slideNumber} | [{url}]({url}) |\n")
 
     if os.name == 'nt':
         x = input("Press Enter to exit.")
