@@ -46,7 +46,7 @@ Successfully installed Pillow-6.1.0 XlsxWriter-1.1.8 lxml-4.3.4 python-docx-0.8.
 
 ```
 $ python pptxurls.py -h
-usage: pptxurls.py [-h] [-m MDFILE] [pptxfiles [pptxfiles ...]]
+usage: pptxurls.py [-h] [-m MDFILE] [-t TITLE] [pptxfiles [pptxfiles ...]]
 
 positional arguments:
   pptxfiles
@@ -55,6 +55,8 @@ optional arguments:
   -h, --help            show this help message and exit
   -m MDFILE, --mdfile MDFILE
                         Markdown output report filename
+  -t TITLE, --title TITLE
+                        Label each URL with its page title (Off by default)
 ```
 
 If you don't specify the `-m` argument, Pptxurls will create a file
@@ -72,9 +74,22 @@ Use this resource to easily open links included in your printed materials.
 ## Book 1
 
 | Page | URL |
-|-----|-----|
+|------|-----|
 | 9 | [http://www.sans.org](http://www.sans.org) |
 | 13 | [http://www.sans.org/score/incidentforms](http://www.sans.org/score/incidentforms) |
+
+$ python pptxurls.py *.pptx -m Links.md -t true
+pptxurls (master) $ head -10 Links.md
+# List of Links
+
+Use this resource to easily open links included in your printed materials.
+
+## Book 1
+
+| Page | URL |
+|------|-----|
+| 9 | [Information Security Training \| SANS Cyber Security Certifications & Research](http://www.sans.org) |
+| 13 | [Sample Incident Handling Forms \| SCORE \| SANS Institute](http://www.sans.org/score/incidentforms) |
 ```
 
 ## On Page Numbering

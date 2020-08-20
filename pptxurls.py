@@ -14,6 +14,9 @@ import pdb
 import signal
 from zipfile import ZipFile
 from xml.dom.minidom import parse
+import requests
+from bs4 import BeautifulSoup
+from markdown_strings import esc_format
 
 
 # Remove trailing unwanted characters from the end of URL's
@@ -152,6 +155,14 @@ def is_valid_file(parser, arg):
 def signal_exit(signal, frame):
     sys.exit(0)
 
+def md_escape(string):
+    return ' '.join(esc_format(string).replace("|", "\|").split())
+
+def anchor_escape(string):
+    return string.replace("[", "\[").replace("]", "\]")
+
+def url_escape(string):
+    return string.replace("(", "\(").replace(")", "\)")
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_exit)
@@ -163,6 +174,12 @@ if __name__ == "__main__":
         dest='mdfile',
         default="pptxurls.md",
         help='Markdown output report filename')
+    parser.add_argument(
+        '-t',
+        '--title',
+        dest='title',
+        default=False,
+        help='Label each URL with its page title (Off by default)')
     parser.add_argument(
         'pptxfiles',
         type=lambda x: is_valid_file(
@@ -202,10 +219,9 @@ if __name__ == "__main__":
 
         # If there is more than one book, write a header and open table
         if (len(args.pptxfiles) > 1):
-            mdfile.write(f"\n## Book {booknum}\n\n| Page | URL |\n|-----|-----|\n")
-        else:
-            # Only a single book, just open the table for URLs
-            mdfile.write(f"| Page | URL |\n|-----|-----|\n")
+            mdfile.write(f"\n## Book {booknum}\n\n")
+        
+        mdfile.write(f"| Page | URL |\n|------|-----|\n")
 
         # This may be the most insane regex I've ever seen.  It's very comprehensive, but it's too aggressive for
         # what I want.  It matches arp:remote in ettercap -TqM arp:remote // //, so I'm using something simpler
@@ -228,7 +244,29 @@ if __name__ == "__main__":
                 if "://localhost" in url:
                     continue
 
-                mdfile.write(f"| {slideNumber} | [{url}]({url}) |\n")
+                if args.title:
+                    title = None
+
+                    try:
+                        page = requests.get(url, timeout=5)
+                    except:
+                        print("Unexpected error:", sys.exc_info()[0])
+
+                    if page and page.text:
+                        html = page.text
+                        soup = BeautifulSoup(html, "html.parser")
+                        element = soup.find("title")
+
+                        if element:
+                            title = element.string
+
+                    if not title:
+                        title = url
+
+                    print(title)
+                    mdfile.write(f"| {slideNumber} | [{anchor_escape(md_escape(title))}]({url_escape(md_escape(url))}) |\n")
+                else:
+                    mdfile.write(f"| {slideNumber} | [{anchor_escape(md_escape(url))}]({url_escape(md_escape(url))}) |\n")
 
     if os.name == 'nt':
         x = input("Press Enter to exit.")
